@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block page_title %}Sales Analytics & Machine Learning Intelligence{% endblock %}
+{% block page_subtitle %}Multiple Linear Regression pipeline for future daily sales prediction{% endblock %}
+
+{% block content %}
+<div id="analytics-charts-wrapper">
+    <!-- Top Action & Model Status Ribbon -->
+    <div class="card-custom mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fs-6 fw-bold text-white">Algorithm: Multiple Linear Regression</span>
+                    <span class="badge-custom badge-bronze">scikit-learn LinearRegression</span>
+                </div>
+                <div class="text-muted fs-8 mt-1">
+                    Target: Daily Taxable Sales (INR) | Chronological 80/20 Train-Test Partitioning (No Shuffling)
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+                <!-- Dataset Exports for Viva Demonstration -->
+                <a href="{{ url_for('analytics.download_historical_dataset') }}" class="btn-outline-custom py-1 px-3 fs-8" title="Download original 3,000 synthetic Indian invoice records CSV">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Dataset A (3,000 CSV)</span>
+                </a>
+                <a href="{{ url_for('analytics.download_daily_dataset') }}" class="btn-outline-custom py-1 px-3 fs-8" title="Download daily aggregated sales dataset CSV">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Dataset B (Daily CSV)</span>
+                </a>
+
+                <!-- Forecast Horizon Selector -->
+                <form method="POST" action="{{ url_for('analytics.update_forecast') }}" class="d-flex align-items-center gap-2">
+                    <label class="text-muted fs-8 mb-0">Forecast Horizon:</label>
+                    <select name="horizon_days" class="form-select-custom py-1 px-2 fs-8" style="width: 110px;">
+                        <option value="7" selected>7 Days</option>
+                        <option value="14">14 Days</option>
+                        <option value="30">30 Days</option>
+                    </select>
+                    <button type="submit" class="btn-outline-custom py-1 px-3 fs-8">Run Forecast</button>
+                </form>
+
+                <!-- Retrain Model Button -->
+                <form method="POST" action="{{ url_for('analytics.retrain') }}" class="d-inline">
+                    <button type="submit" class="btn-primary-custom py-1 px-3 fs-8">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Retrain Model</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Evaluation Metrics KPI Cards -->
+    {% if bundle and bundle.metrics %}
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card">
+                <div class="kpi-label">R-Squared (R²) Score</div>
+                <div class="kpi-value text-white">{{ bundle.metrics.r2 }}</div>
+                <div class="kpi-subtext">Coefficient of determination on test set</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card">
+                <div class="kpi-label">Root Mean Squared Error (RMSE)</div>
+                <div class="kpi-value" style="color: var(--accent-primary);">{{ bundle.metrics.rmse | currency }}</div>
+                <div class="kpi-subtext">Standard deviation of residuals</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card">
+                <div class="kpi-label">Mean Absolute Error (MAE)</div>
+                <div class="kpi-value text-white">{{ bundle.metrics.mae | currency }}</div>
+                <div class="kpi-subtext">Average absolute error per day</div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="kpi-card">
+                <div class="kpi-label">Observations Partition</div>
+                <div class="kpi-value text-white">{{ bundle.train_samples }} / {{ bundle.test_samples }}</div>
+                <div class="kpi-subtext">Train (80%) vs Unseen Test (20%)</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts Row 1: Historical Sales vs Future Forecast -->
+    <div class="row g-4 mb-4">
+        <!-- Historical Sales Chart -->
+        <div class="col-lg-6">
+            <div class="card-custom h-100">
+                <div class="card-title">
+                    <span>1. Historical Daily Sales Trend</span>
+                    <span class="badge-custom badge-bronze">Actual Transactions</span>
+                </div>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="historicalSalesChart"></canvas>
+                </div>
+                <div class="text-muted fs-8 mt-2">
+                    Actual historical taxable sales aggregated by date from {{ data_summary.start_date }} to {{ data_summary.end_date }}.
+                </div>
+            </div>
+        </div>
+
+        <!-- Future Forecast Chart -->
+        <div class="col-lg-6">
+            <div class="card-custom h-100">
+                <div class="card-title">
+                    <span>2. Future Sales Predictions</span>
+                    <span class="badge-custom badge-pending">Recursive Forecast</span>
+                </div>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="futureForecastChart"></canvas>
+                </div>
+                <div class="text-muted fs-8 mt-2">
+                    Multi-step recursive predictions using calibrated calendar cycles, lag sales, and rolling 7-day averages.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2: Test Set Evaluation (Actual vs Predicted) -->
+    <div class="card-custom mb-4">
+        <div class="card-title">
+            <div>
+                <span>3. Model Evaluation: Actual vs. Predicted (Unseen Test Data)</span>
+                <span class="text-muted fw-normal fs-8 ms-2">Rigorous verification on held-out 20% chronological test partition</span>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge-custom badge-paid">Solid Green: Actual Test Sales</span>
+                <span class="badge-custom badge-bronze">Dashed Amber: ML Prediction</span>
+            </div>
+        </div>
+        <div style="height: 280px; position: relative;">
+            <canvas id="evalComparisonChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Bottom Tables: Forecast Table & Regression Weights -->
+    <div class="row g-4 mb-4">
+        <!-- Forecast Table -->
+        <div class="col-lg-7">
+            <div class="card-custom h-100">
+                <div class="card-title">
+                    <span>Upcoming Predicted Daily Sales</span>
+                    <span class="badge-custom badge-bronze">{{ predictions | length }} Days</span>
+                </div>
+                <div class="table-custom-wrapper">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Forecast Date</th>
+                                <th>Day</th>
+                                <th>Predicted Sales (₹)</th>
+                                <th>Lag Sales Used</th>
+                                <th>Rolling Avg Used</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if predictions %}
+                                {% for pred in predictions %}
+                                <tr>
+                                    <td class="fw-semibold text-white font-monospace">{{ pred['prediction_date'] }}</td>
+                                    <td>
+                                        <span class="badge-custom badge-bronze">Day {{ loop.index }}</span>
+                                    </td>
+                                    <td class="fw-bold fs-7" style="color: var(--accent-primary);">
+                                        {{ pred['predicted_sales'] | currency }}
+                                    </td>
+                                    <td class="text-muted fs-8">{{ pred['model_metric'] }}</td>
+                                    <td class="text-muted fs-8">Multiple Linear Regression</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        No forecast generated. Click "Run Forecast" above.
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Regression Feature Weights / Coefficients -->
+        <div class="col-lg-5">
+            <div class="card-custom h-100">
+                <div class="card-title">
+                    <span>Feature Weights & Regression Formula</span>
+                </div>
+                <p class="text-muted fs-8 mb-3">
+                    Formula: <code>y = Intercept + ∑ (w_i * X_i)</code> trained on normalized chronological features without data leakage.
+                </p>
+
+                {% if bundle and bundle.coefficients %}
+                <div class="table-custom-wrapper mb-3">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Feature Name</th>
+                                <th>Description</th>
+                                <th class="text-end">Coefficient (w)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for feat, weight in bundle.coefficients.items() %}
+                            <tr>
+                                <td class="font-monospace fs-8 text-white">{{ feat }}</td>
+                                <td class="text-muted fs-8">
+                                    {% if feat == 'day_number' %}Sequential day
+                                    {% elif feat == 'year' %}Calendar year
+                                    {% elif feat == 'month' %}Seasonality month
+                                    {% elif feat == 'day_of_week' %}Day index (0-6)
+                                    {% elif feat == 'is_weekend' %}Weekend indicator
+                                    {% elif feat == 'previous_day_sales' %}Lag 1 daily sales
+                                    {% elif feat == 'previous_7_day_average' %}7-day rolling mean
+                                    {% endif %}
+                                </td>
+                                <td class="text-end font-monospace fw-semibold {% if weight >= 0 %}text-success{% else %}text-danger{% endif %} fs-8">
+                                    {{ weight }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="fw-semibold">
+                                <td colspan="2" class="text-white fs-8">Intercept (β₀)</td>
+                                <td class="text-end font-monospace fs-8" style="color: var(--accent-secondary);">
+                                    {{ bundle.intercept }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <div class="p-3 rounded" style="background-color: var(--bg-surface); border: 1px solid var(--border-subtle);">
+                    <div class="fw-semibold fs-8 text-white mb-1">Academic Viva Note:</div>
+                    <div class="text-muted fs-8">
+                        R² represents the proportion of variance in daily sales explained by independent features. It is not an arbitrary accuracy percentage. Lag features are shifted strictly by 1 day to prevent lookahead data leakage.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

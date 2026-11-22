@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block page_title %}Executive Dashboard{% endblock %}
+{% block page_subtitle %}Real-time business performance & machine learning sales intelligence{% endblock %}
+
+{% block content %}
+<!-- Top KPI Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Sales</div>
+            <div class="kpi-value">{{ total_sales | currency }}</div>
+            <div class="kpi-subtext">From {{ total_invoices }} generated invoices</div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Invoices</div>
+            <div class="kpi-value">{{ total_invoices }}</div>
+            <div class="kpi-subtext">Active billing records</div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Customers</div>
+            <div class="kpi-value">{{ total_customers }}</div>
+            <div class="kpi-subtext">Registered retail & wholesale</div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Products</div>
+            <div class="kpi-value">{{ total_products }}</div>
+            <div class="kpi-subtext">In catalog</div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Low Stock Alert</div>
+            <div class="kpi-value text-warning">{{ low_stock_count }}</div>
+            <div class="kpi-subtext">Items at or below threshold</div>
+        </div>
+    </div>
+    <div class="col-xl-2 col-md-4 col-sm-6">
+        <div class="kpi-card">
+            <div class="kpi-label">Pending Payments</div>
+            <div class="kpi-value text-danger">{{ pending_amount | currency }}</div>
+            <div class="kpi-subtext">{{ pending_count }} pending invoices</div>
+        </div>
+    </div>
+</div>
+
+<!-- Middle Section: Chart & ML Snapshot -->
+<div class="row g-4 mb-4">
+    <!-- Sales Overview Chart -->
+    <div class="col-lg-8">
+        <div class="card-custom h-100">
+            <div class="card-title">
+                <div>
+                    <span>Sales Trend Overview</span>
+                    <span class="text-muted fw-normal fs-7 ms-2">(Recent daily historical sales)</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <span class="badge-custom badge-bronze">Today: {{ today_sales | currency }}</span>
+                    <span class="badge-custom badge-bronze">Month: {{ month_sales | currency }}</span>
+                </div>
+            </div>
+            <div style="height: 280px; position: relative;">
+                <canvas id="dashboardSalesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Learning Quick Forecast Card -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100 d-flex flex-column justify-content-between">
+            <div>
+                <div class="card-title">
+                    <span>ML Sales Intelligence</span>
+                    <span class="badge-custom badge-bronze">scikit-learn</span>
+                </div>
+                <p class="text-muted fs-7 mb-3">
+                    Trained Multiple Linear Regression model analyzing calendar cycles, lag sales, and 7-day rolling averages.
+                </p>
+
+                <!-- Next Day Forecast Highlight -->
+                <div class="p-3 mb-3 rounded" style="background-color: var(--bg-surface); border: 1px solid var(--border-subtle);">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-muted fs-7">Next Forecast Date</span>
+                        <span class="badge-custom badge-bronze">{{ next_prediction['prediction_date'] if next_prediction else 'Pending Run' }}</span>
+                    </div>
+                    <div class="fs-4 fw-bold" style="color: var(--accent-primary);">
+                        {{ next_prediction['predicted_sales'] | currency if next_prediction else '₹0.00' }}
+                    </div>
+                    <div class="text-muted fs-8 mt-1">Estimated daily taxable sales target</div>
+                </div>
+
+                <!-- Model Metrics Summary -->
+                {% if ml_bundle and ml_bundle.metrics %}
+                <div class="row g-2 text-center mb-2">
+                    <div class="col-6">
+                        <div class="p-2 rounded" style="background: var(--bg-input); border: 1px solid var(--border-subtle);">
+                            <div class="text-muted fs-8">Model R²</div>
+                            <div class="fw-bold fs-6">{{ ml_bundle.metrics.r2 }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-2 rounded" style="background: var(--bg-input); border: 1px solid var(--border-subtle);">
+                            <div class="text-muted fs-8">RMSE Error</div>
+                            <div class="fw-bold fs-6">{{ ml_bundle.metrics.rmse | currency }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="mt-3">
+                <a href="{{ url_for('analytics.index') }}" class="btn-outline-custom w-100 justify-content-center">
+                    <span>Explore Full ML Analytics & Predictions</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Section: Recent Invoices, Low Stock Alert, Top Selling -->
+<div class="row g-4">
+    <!-- Recent Invoices Table -->
+    <div class="col-lg-8">
+        <div class="card-custom">
+            <div class="card-title">
+                <span>Recent Invoices</span>
+                <a href="{{ url_for('invoices.list_invoices') }}" class="btn-outline-custom py-1 px-2 fs-8">View All History</a>
+            </div>
+            <div class="table-custom-wrapper">
+                <table class="table-custom">
+                    <thead>
+                        <tr>
+                            <th>Invoice No</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Grand Total</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if recent_invoices %}
+                            {% for inv in recent_invoices %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('invoices.view_invoice', invoice_id=inv['invoice_id']) }}" class="text-decoration-none fw-semibold" style="color: var(--accent-secondary);">
+                                        {{ inv['invoice_number'] }}
+                                    </a>
+                                </td>
+                                <td>{{ inv['invoice_date'] | format_date }}</td>
+                                <td>{{ inv['customer_name'] }}</td>
+                                <td class="fw-semibold">{{ inv['grand_total'] | currency }}</td>
+                                <td>
+                                    <span class="badge-custom {% if inv['payment_status'] == 'Paid' %}badge-paid{% elif inv['payment_status'] == 'Pending' %}badge-pending{% else %}badge-partial{% endif %}">
+                                        {{ inv['payment_status'] }}
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('invoices.view_invoice', invoice_id=inv['invoice_id']) }}" class="btn-outline-custom py-1 px-2 fs-8 me-1">View</a>
+                                    <a href="{{ url_for('invoices.download_invoice', invoice_id=inv['invoice_id']) }}" class="btn-primary-custom py-1 px-2 fs-8">PDF</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">
+                                    No invoices generated yet. Create your first invoice using the "New Invoice" button.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side: Low Stock & Top Products -->
+    <div class="col-lg-4">
+        <!-- Low Stock Alert Box -->
+        <div class="card-custom mb-4">
+            <div class="card-title">
+                <span>Low Stock Watchlist</span>
+                <a href="{{ url_for('products.list_products', low_stock='1') }}" class="text-muted fs-8 text-decoration-none">View All</a>
+            </div>
+            {% if low_stock_products %}
+                <div class="d-flex flex-column gap-2">
+                    {% for p in low_stock_products %}
+                    <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background-color: var(--bg-surface); border: 1px solid var(--border-subtle);">
+                        <div>
+                            <div class="fw-semibold fs-7 text-truncate" style="max-width: 170px;">{{ p['product_name'] }}</div>
+                            <div class="text-muted fs-8">Min Threshold: {{ p['minimum_stock'] }} units</div>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge-custom badge-danger">Stock: {{ p['stock'] }}</span>
+                            <div class="mt-1">
+                                <a href="{{ url_for('products.list_products') }}" class="fs-8 text-decoration-none" style="color: var(--accent-secondary);">Restock</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-muted fs-7 py-3 text-center">
+                    All inventory levels are currently above minimum threshold.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Top Selling Products -->
+        <div class="card-custom">
+            <div class="card-title">
+                <span>Top Selling Products</span>
+            </div>
+            {% if top_selling %}
+                <div class="d-flex flex-column gap-2">
+                    {% for item in top_selling %}
+                    <div class="p-2 rounded d-flex justify-content-between align-items-center" style="background-color: var(--bg-surface); border: 1px solid var(--border-subtle);">
+                        <div>
+                            <div class="fw-semibold fs-7">{{ item['product_name'] }}</div>
+                            <div class="text-muted fs-8">Total Sold: {{ item['total_sold'] }} units</div>
+                        </div>
+                        <div class="fw-bold fs-7 text-end" style="color: var(--accent-primary);">
+                            {{ item['total_revenue'] | currency }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-muted fs-7 py-3 text-center">
+                    Sales rankings will appear once invoices are generated.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.dashboardChartData = {{ chart_trend | tojson }};
+</script>
+{% endblock %}
+
